@@ -3,15 +3,16 @@ import fs from 'node:fs';
 
 const PORT = 3000;
 
-const data = fs.readFileSync('index.html', 'utf-8');
+const data = fs.readFileSync('register.html', 'utf-8');
 
 const server = http.createServer((req, res) => {
-    if (req.method === 'GET' && req.url === '/give-me-something-great') {
+    res.statusCode = 200
+    if (req.method === 'GET' && req.url === '/') {
         res.statusCode = 200
         res.end(data)
     }
     else {
-        res.statusCode = 200
+        req.statusCode = 404
         res.end('sosi pisos')
     }
 });
