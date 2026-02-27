@@ -106,7 +106,7 @@ describe('GET /', () => {
 });
 
 /* ---------- POST /register ---------------------------------------- */
-describe.skip('POST /register', () => {
+describe('POST /register', () => {
   test('регистрация нового пользователя — статус 200-302', async () => {
     const res = await api.post('/register', new URLSearchParams(TEST_USER).toString());
     expect(res.status).toBeGreaterThanOrEqual(200);
@@ -161,7 +161,7 @@ describe.skip('POST /register', () => {
 });
 
 /* ---------- POST /login ------------------------------------------- */
-describe.skip('POST /login', () => {
+describe('POST /login', () => {
   test('логин с верными данными — статус 200-302 и cookie sid', async () => {
     const res = await api.post('/login', new URLSearchParams(TEST_USER).toString());
     expect(res.status).toBeGreaterThanOrEqual(200);
@@ -227,7 +227,7 @@ describe.skip('POST /login', () => {
 });
 
 /* ---------- Защищённые роуты -------------------------------------- */
-describe.skip('Защищённые роуты', () => {
+describe('Защищённые роуты', () => {
   let validSid;
 
   beforeAll(async () => {
@@ -299,7 +299,7 @@ describe.skip('Защищённые роуты', () => {
 });
 
 /* ---------- POST /logout ------------------------------------------ */
-describe.skip('POST /logout', () => {
+describe('POST /logout', () => {
   let sidForLogout;
 
   beforeAll(async () => {
@@ -350,7 +350,7 @@ describe.skip('POST /logout', () => {
 });
 
 /* ---------- 404 --------------------------------------------------- */
-describe.skip('404 на неизвестные роуты', () => {
+describe('404 на неизвестные роуты', () => {
   test('GET /nonexistent → 404', async () => {
     const res = await api.get('/nonexistent');
     expect(res.status).toBe(404);
@@ -368,7 +368,7 @@ describe.skip('404 на неизвестные роуты', () => {
 });
 
 /* ---------- Безопасность ------------------------------------------ */
-describe.skip('Безопасность', () => {
+describe('Безопасность', () => {
   test('на GET / нет секретных FLAG{...}', async () => {
     const res = await api.get('/');
     expect(res.data).not.toMatch(/FLAG\{/);

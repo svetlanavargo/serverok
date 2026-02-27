@@ -3,7 +3,33 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 
 const PORT = 3000;
-const FORM = fs.readFileSync('register.html', 'utf-8');
+const SESSIONS = {};
+const FORM_CONTEXT = {
+    register: {
+        TITLE: 'Регистрация',
+        ACTION: '/register',
+        BUTTON_TEXT: 'Зарегистрироваться'
+    },
+    login: {
+        TITLE: 'Авторизация',
+        ACTION: '/login',
+        BUTTON_TEXT: 'Войти'
+    }
+};
+
+const renderForm = (formContextKey, error = '') => {
+    const context = FORM_CONTEXT[formContextKey]
+    let FORM = fs.readFileSync('form.html', 'utf-8');
+
+    for (const key in context) {
+        const regEx = new RegExp(`{{${key.toUpperCase()}}}`, 'g')
+        FORM = FORM.replace(regEx, context[key])
+    }
+
+    FORM = FORM.replace(/{{ERROR}}/g, error)
+
+    return FORM
+}
 
 const getPostedData = async (req) => {
     return new Promise((resolve, reject) => {
@@ -18,13 +44,46 @@ const getPostedData = async (req) => {
         req.on('error', err => reject(err))
     })
 }
+const validateData = (email, password) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
-const registerUser = (email, password) => {
-    const salt = crypto.randomBytes(16).toString('hex')
-    const passwordHash = crypto.createHash('sha256')
+    if (!emailRegex.test(email)) {
+        return {
+            valid: false,
+            error: "Неверный email"
+        }
+    }
+    if (password.length < 8) {
+        return {
+            valid: false,
+            error: "Пароль должен быть не менее 8 символов"
+        }
+    }
+
+    return {
+        valid: true
+    }
+}
+
+const createPasswordHash = (password, salt) => {
+    return crypto.createHash('sha256')
         .update(password + salt).digest('hex')
+}
+const getSid = (cookie) => {
+    const cookiesArr = cookie.split(';')
+    const cookiesObj = {}
 
-    const DB = JSON.parse(fs.readFileSync('database.json', 'utf-8'))
+    for (const cookie of cookiesArr) {
+        const [key, value] = cookie.trim().split('=')
+        cookiesObj[key] = value
+    }
+
+    return cookiesObj.sid
+}
+
+const registerUser = (email, password, DB) => {
+    const salt = crypto.randomBytes(16).toString('hex')
+    const passwordHash = createPasswordHash(password, salt)
 
     const user = {
         id: crypto.randomUUID(),
@@ -36,55 +95,191 @@ const registerUser = (email, password) => {
     DB.users.push(user)
     fs.writeFileSync('database.json', JSON.stringify(DB, null, 2), 'utf-8')
 }
-
-const loginUser = (email, password) => {
-
+const checkPassword = (password, baseHashedPassword, salt) => {
+    const passwordHash = createPasswordHash(password, salt)
+    return baseHashedPassword === passwordHash
 }
+const createSession = (email) => {
+    const sid = crypto.randomBytes(24).toString("hex")
+    const expiresAt = Date.now() + 1000 * 60 * 60
 
-const showRegisterForm = (req, res) => {
-    res.statusCode = 200
-    res.end(FORM)
+    SESSIONS[sid] = {email, expiresAt}
+
+    return sid
 }
-const showLoginForm = (req, res) => {
-    res.statusCode = 200
-    res.end(FORM)
+const authRequired = (handler) => {
+    return (req, res) => {
+        const cookie = req.headers.cookie
+
+        if(!cookie) {
+            res.statusCode = 302
+            res.setHeader("Location", "/login")
+            res.end()
+            return
+        }
+
+        const userSid = getSid(cookie)
+
+        if (!SESSIONS[userSid]) {
+            res.statusCode = 302
+            res.setHeader("Location", "/login")
+            res.end()
+            return
+        }
+
+        const date = Date.now()
+
+        if (date > SESSIONS[userSid].expiresAt) {
+            res.statusCode = 302
+            res.setHeader("Location", "/login")
+            res.end()
+            return
+        }
+
+        handler(req, res)
+    }
 }
 
 const handleRegister = async (req, res) => {
-    const [userEmail, userPassword] = await getPostedData(req)
+    const [email, password] = await getPostedData(req)
+    const {valid, error} = validateData(email, password)
 
-    if (!USERS_ARR.some(user => user.email === userEmail)) {
-        registerUser(userEmail, userPassword)
-        res.end('ZAEBOCHEK! You are is registered, bro!')
-    } else {
-        res.end('This email is already registered')
+    if (!valid) {
+        res.statusCode = 400
+        res.end(renderForm('register', error))
+        return
     }
-    console.log(userEmail, userPassword)
+
+    const DB = JSON.parse(fs.readFileSync('database.json', 'utf-8'))
+
+    if (DB.users.some(user => user.email === email)) {
+        res.statusCode = 409
+        res.end(renderForm('register', 'Такой email уже зарегистрирован'))
+        return
+    }
+
+    registerUser(email, password, DB)
+    console.log('Пользователь зарегистрирован')
+    res.statusCode = 302
+    res.setHeader('Location', '/login')
+    res.end()
+}
+const handleLogin = async (req, res) => {
+    const [email, password] = await getPostedData(req)
+    const {valid, error} = validateData(email, password)
+
+    if (!valid) {
+        res.statusCode = 400
+        res.end(renderForm('login', error))
+        return
+    }
+
+    const DB = JSON.parse(fs.readFileSync('database.json', 'utf-8'))
+    const user = DB.users.find(user => user.email === email)
+
+    if (!user) {
+        res.statusCode = 400
+        res.setHeader('Location', '/register')
+        res.end()
+        return
+    }
+
+    const isCorrect = checkPassword(password, user.passwordHash, user.salt)
+
+    if (!isCorrect) {
+        res.statusCode = 400
+        res.end(renderForm('login', 'Неверный пароль'))
+        return
+    }
+
+    const sid = createSession(email)
+    res.setHeader('Set-Cookie', `sid=${sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age=3600`)
+
+    res.statusCode = 303
+    res.setHeader('Location', '/data-first')
+    res.end()
+}
+const handleLogout = async (req, res) => {
+    const cookie = req.headers.cookie
+    if (cookie) {
+        const userSid = getSid(cookie)
+        delete SESSIONS[userSid]
+    }
+
+    res.setHeader('Set-Cookie', `sid=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`);
+    res.statusCode = 302
+    res.setHeader("Location", "/login")
+    res.end()
 }
 
-const handleLogin = async (req, res) => {
-    const [userEmail, userPassword] = await getPostedData(req)
+const showMainPage = (req, res) => {
+    const cookie = req.headers.cookie
+    let html
 
+    if (cookie) {
+        const sid = getSid(cookie)
+        if (SESSIONS[sid] && Date.now() < SESSIONS[sid].expiresAt) {
+            html = fs.readFileSync('index.html', 'utf-8')
+        }
+    }
+
+    if (!html) {
+        html = html = renderForm('login', '') + renderForm('register', '')
+    }
+
+    res.statusCode = 200
+    res.end(html)
+}
+const showRegisterForm = (req, res) => {
+    res.statusCode = 200
+    res.end(renderForm('register', ''))
+}
+const showLoginForm = (req, res) => {
+    res.statusCode = 200
+    res.end(renderForm('login', ''))
+}
+const pageFirst = (req, res) => {
+    let page = fs.readFileSync('index.html', 'utf-8');
+    res.statusCode = 200
+    res.end(page)
+}
+const pageSecond = (req, res) => {
+    let page = fs.readFileSync('index.html', 'utf-8');
+    res.statusCode = 200
+    res.end(page)
 }
 
 const ROUTES = {
+    "GET /": showMainPage,
     "GET /health": (req, res) => {
         res.statusCode = 200
         res.end('alive')
     },
     "GET /register": showRegisterForm,
     "GET /login": showLoginForm,
+    "GET /data-first": authRequired(pageFirst),
+    "GET /data-second": authRequired(pageSecond),
     "POST /register": handleRegister,
-    "POST /login": handleLogin
+    "POST /login": handleLogin,
+    "POST /logout": handleLogout,
 }
 
 const server = http.createServer(async (req, res) => {
-    const key = `${req.method} ${req.url}`
+    const time = Date.now()
+    const method = req.method
+    const url = req.url
+    const ua = req.headers['user-agent'] || ''
 
-    ROUTES[key]?.(req, res) || (() => {
-        req.statusCode = 404
-        res.end('sosi pisos')
-    })()
+    console.log(`[${time}] ${method} ${url} UA="${ua}"`)
+
+    const key = `${method} ${url}`
+
+    if (ROUTES[key]) {
+        ROUTES[key](req, res)
+    } else {
+        res.statusCode = 404
+        res.end('Not found')
+    }
 });
 
 server.listen(PORT, () => {
