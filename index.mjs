@@ -24,7 +24,7 @@ const registerUser = (email, password) => {
     const passwordHash = crypto.createHash('sha256')
         .update(password + salt).digest('hex')
 
-    const DB = JSON.parse(fs.readFileSync('bd.json', 'utf-8'))
+    const DB = JSON.parse(fs.readFileSync('database.json', 'utf-8'))
 
     const user = {
         id: crypto.randomUUID(),
@@ -34,7 +34,7 @@ const registerUser = (email, password) => {
     }
 
     DB.users.push(user)
-    fs.writeFileSync('bd.json', JSON.stringify(DB, null, 2), 'utf-8')
+    fs.writeFileSync('database.json', JSON.stringify(DB, null, 2), 'utf-8')
 }
 
 const loginUser = (email, password) => {
@@ -68,6 +68,10 @@ const handleLogin = async (req, res) => {
 }
 
 const ROUTES = {
+    "GET /health": (req, res) => {
+        res.statusCode = 200
+        res.end('alive')
+    },
     "GET /register": showRegisterForm,
     "GET /login": showLoginForm,
     "POST /register": handleRegister,

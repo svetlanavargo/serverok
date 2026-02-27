@@ -1,3 +1,4 @@
 .idea
 .DS_Store
-bd.json
+db.json
+node_modules/
