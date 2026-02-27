@@ -1,6 +1,7 @@
 import * as http from 'node:http';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import 'dotenv/config';
 
 const PORT = 3000;
 const SESSIONS = {};
@@ -8,12 +9,16 @@ const FORM_CONTEXT = {
     register: {
         TITLE: 'Регистрация',
         ACTION: '/register',
-        BUTTON_TEXT: 'Зарегистрироваться'
+        BUTTON_TEXT: 'Зарегистрироваться',
+        REDIRECT_LINK: '/login',
+        REDIRECT_TEXT: 'Уже зарегистрированы?'
     },
     login: {
         TITLE: 'Авторизация',
         ACTION: '/login',
-        BUTTON_TEXT: 'Войти'
+        BUTTON_TEXT: 'Войти',
+        REDIRECT_LINK: '/register',
+        REDIRECT_TEXT: 'Регистрация'
     }
 };
 
@@ -44,19 +49,13 @@ const getPostedData = async (req) => {
         req.on('error', err => reject(err))
     })
 }
-const validateData = (email, password) => {
+const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
     if (!emailRegex.test(email)) {
         return {
             valid: false,
-            error: "Неверный email"
-        }
-    }
-    if (password.length < 8) {
-        return {
-            valid: false,
-            error: "Пароль должен быть не менее 8 символов"
+            error: "Неверный формат email"
         }
     }
 
@@ -142,12 +141,30 @@ const authRequired = (handler) => {
 
 const handleRegister = async (req, res) => {
     const [email, password] = await getPostedData(req)
-    const {valid, error} = validateData(email, password)
+    const {valid, error} = validateEmail(email)
 
     if (!valid) {
         res.statusCode = 400
         res.end(renderForm('register', error))
         return
+    }
+
+    if (password.length < 8) {
+        res.statusCode = 400
+        res.end(renderForm('register', 'Пароль должен быть не менее 8 символов'))
+        return
+    }
+
+    if (!fs.existsSync('database.json')) {
+        const base = {
+            users: []
+        }
+
+        fs.writeFileSync(
+            'database.json',
+            JSON.stringify(base, null, 2),
+            'utf-8'
+        )
     }
 
     const DB = JSON.parse(fs.readFileSync('database.json', 'utf-8'))
@@ -159,26 +176,37 @@ const handleRegister = async (req, res) => {
     }
 
     registerUser(email, password, DB)
-    console.log('Пользователь зарегистрирован')
     res.statusCode = 302
     res.setHeader('Location', '/login')
     res.end()
 }
 const handleLogin = async (req, res) => {
     const [email, password] = await getPostedData(req)
-    const {valid, error} = validateData(email, password)
+    const {valid, error} = validateEmail(email)
 
     if (!valid) {
-        res.statusCode = 400
+        res.statusCode = 403
         res.end(renderForm('login', error))
         return
+    }
+
+    if (!fs.existsSync('database.json')) {
+        const base = {
+            users: []
+        }
+
+        fs.writeFileSync(
+            'database.json',
+            JSON.stringify(base, null, 2),
+            'utf-8'
+            )
     }
 
     const DB = JSON.parse(fs.readFileSync('database.json', 'utf-8'))
     const user = DB.users.find(user => user.email === email)
 
     if (!user) {
-        res.statusCode = 400
+        res.statusCode = 303
         res.setHeader('Location', '/register')
         res.end()
         return
@@ -187,7 +215,7 @@ const handleLogin = async (req, res) => {
     const isCorrect = checkPassword(password, user.passwordHash, user.salt)
 
     if (!isCorrect) {
-        res.statusCode = 400
+        res.statusCode = 403
         res.end(renderForm('login', 'Неверный пароль'))
         return
     }
@@ -212,24 +240,6 @@ const handleLogout = async (req, res) => {
     res.end()
 }
 
-const showMainPage = (req, res) => {
-    const cookie = req.headers.cookie
-    let html
-
-    if (cookie) {
-        const sid = getSid(cookie)
-        if (SESSIONS[sid] && Date.now() < SESSIONS[sid].expiresAt) {
-            html = fs.readFileSync('index.html', 'utf-8')
-        }
-    }
-
-    if (!html) {
-        html = html = renderForm('login', '') + renderForm('register', '')
-    }
-
-    res.statusCode = 200
-    res.end(html)
-}
 const showRegisterForm = (req, res) => {
     res.statusCode = 200
     res.end(renderForm('register', ''))
@@ -240,17 +250,20 @@ const showLoginForm = (req, res) => {
 }
 const pageFirst = (req, res) => {
     let page = fs.readFileSync('index.html', 'utf-8');
+    page += `<p>${process.env.FIRST_FLAG}</p>`
     res.statusCode = 200
     res.end(page)
 }
 const pageSecond = (req, res) => {
     let page = fs.readFileSync('index.html', 'utf-8');
+    page += `<p>${process.env.SECOND_FLAG}</p>`
+
     res.statusCode = 200
     res.end(page)
 }
 
 const ROUTES = {
-    "GET /": showMainPage,
+    "GET /": authRequired(pageFirst),
     "GET /health": (req, res) => {
         res.statusCode = 200
         res.end('alive')

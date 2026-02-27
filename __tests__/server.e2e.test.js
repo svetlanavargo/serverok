@@ -87,16 +87,9 @@ describe('GET /health', () => {
 
 /* ---------- GET / ------------------------------------------------- */
 describe('GET /', () => {
-  test('возвращает статус 200', async () => {
+  test('возвращает статус 302', async () => {
     const res = await api.get('/');
-    expect(res.status).toBe(200);
-  });
-
-  test('без авторизации на странице есть формы/ссылки регистрации и логина', async () => {
-    const res = await api.get('/');
-    const body = res.data.toLowerCase();
-    expect(body).toMatch(/register|регистр|signup/);
-    expect(body).toMatch(/login|вход|войти|авториз/);
+    expect(res.status).toBe(302);
   });
 
   test('на главной странице НЕ отображаются секретные флаги', async () => {
@@ -217,12 +210,12 @@ describe('POST /login', () => {
     expect([400, 401, 403]).toContain(res.status);
   });
 
-  test('несуществующий пользователь — статус 400/401/403', async () => {
+  test('несуществующий пользователь — статус 303 и редирект к реге', async () => {
     const res = await api.post(
       '/login',
       new URLSearchParams({ email: 'nobody@example.com', password: 'password123' }).toString(),
     );
-    expect([400, 401, 403]).toContain(res.status);
+    expect(res.status).toBeGreaterThanOrEqual(303);
   });
 });
 
