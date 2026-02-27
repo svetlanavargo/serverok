@@ -270,7 +270,7 @@ const server = http.createServer(async (req, res) => {
     const url = req.url
     const ua = req.headers['user-agent'] || ''
 
-    // console.log(`[${time}] ${method} ${url} UA="${ua}"`)
+    console.log(`[${time}] ${method} ${url} UA="${ua}"`)
 
     const key = `${method} ${url}`
 
