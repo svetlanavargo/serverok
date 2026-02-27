@@ -1,0 +1,24 @@
+{
+  "name": "serverok",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node ./index.mjs",
+    "test": "jest --forceExit --detectOpenHandles"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/svetlanavargo/serverok.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/svetlanavargo/serverok/issues"
+  },
+  "homepage": "https://github.com/svetlanavargo/serverok#readme",
+  "description": "",
+  "devDependencies": {
+    "axios": "^1.13.5",
+    "jest": "^30.2.0"
+  }
+}

@@ -93,7 +93,7 @@ const registerUser = (email, password, DB) => {
     }
 
     DB.users.push(user)
-    fs.writeFileSync('bd.json', JSON.stringify(DB, null, 2), 'utf-8')
+    fs.writeFileSync('database.json', JSON.stringify(DB, null, 2), 'utf-8')
 }
 const checkPassword = (password, baseHashedPassword, salt) => {
     const passwordHash = createPasswordHash(password, salt)
@@ -150,7 +150,7 @@ const handleRegister = async (req, res) => {
         return
     }
 
-    const DB = JSON.parse(fs.readFileSync('bd.json', 'utf-8'))
+    const DB = JSON.parse(fs.readFileSync('database.json', 'utf-8'))
 
     if (DB.users.some(user => user.email === email)) {
         res.statusCode = 409
@@ -174,7 +174,7 @@ const handleLogin = async (req, res) => {
         return
     }
 
-    const DB = JSON.parse(fs.readFileSync('bd.json', 'utf-8'))
+    const DB = JSON.parse(fs.readFileSync('database.json', 'utf-8'))
     const user = DB.users.find(user => user.email === email)
 
     if (!user) {
