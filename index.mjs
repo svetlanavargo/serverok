@@ -19,7 +19,7 @@ const FORM_CONTEXT = {
 
 const renderForm = (formContextKey, error = '') => {
     const context = FORM_CONTEXT[formContextKey]
-    let FORM = fs.readFileSync('index.html', 'utf-8');
+    let FORM = fs.readFileSync('form.html', 'utf-8');
 
     for (const key in context) {
         const regEx = new RegExp(`{{${key.toUpperCase()}}}`, 'g')
@@ -178,16 +178,18 @@ const handleLogin = async (req, res) => {
     const user = DB.users.find(user => user.email === email)
 
     if (!user) {
-        res.statusCode = 303
+        res.statusCode = 400
         res.setHeader('Location', '/register')
-        return res.end()
+        res.end()
+        return
     }
 
     const isCorrect = checkPassword(password, user.passwordHash, user.salt)
 
     if (!isCorrect) {
-        res.statusCode = 401
-        return res.end(renderForm('login', 'Неверный пароль'))
+        res.statusCode = 400
+        res.end(renderForm('login', 'Неверный пароль'))
+        return
     }
 
     const sid = createSession(email)
@@ -197,7 +199,37 @@ const handleLogin = async (req, res) => {
     res.setHeader('Location', '/data-first')
     res.end()
 }
+const handleLogout = async (req, res) => {
+    const cookie = req.headers.cookie
+    if (cookie) {
+        const userSid = getSid(cookie)
+        delete SESSIONS[userSid]
+    }
 
+    res.setHeader('Set-Cookie', `sid=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`);
+    res.statusCode = 302
+    res.setHeader("Location", "/login")
+    res.end()
+}
+
+const showMainPage = (req, res) => {
+    const cookie = req.headers.cookie
+    let html
+
+    if (cookie) {
+        const sid = getSid(cookie)
+        if (SESSIONS[sid] && Date.now() < SESSIONS[sid].expiresAt) {
+            html = fs.readFileSync('index.html', 'utf-8')
+        }
+    }
+
+    if (!html) {
+        html = html = renderForm('login', '') + renderForm('register', '')
+    }
+
+    res.statusCode = 200
+    res.end(html)
+}
 const showRegisterForm = (req, res) => {
     res.statusCode = 200
     res.end(renderForm('register', ''))
@@ -207,25 +239,40 @@ const showLoginForm = (req, res) => {
     res.end(renderForm('login', ''))
 }
 const pageFirst = (req, res) => {
+    let page = fs.readFileSync('index.html', 'utf-8');
     res.statusCode = 200
-    res.end('first')
+    res.end(page)
 }
 const pageSecond = (req, res) => {
+    let page = fs.readFileSync('index.html', 'utf-8');
     res.statusCode = 200
-    res.end('second')
+    res.end(page)
 }
 
 const ROUTES = {
+    "GET /": showMainPage,
+    "GET /health": (req, res) => {
+        res.statusCode = 200
+        res.end('alive')
+    },
     "GET /register": showRegisterForm,
     "GET /login": showLoginForm,
     "GET /data-first": authRequired(pageFirst),
     "GET /data-second": authRequired(pageSecond),
     "POST /register": handleRegister,
-    "POST /login": handleLogin
+    "POST /login": handleLogin,
+    "POST /logout": handleLogout,
 }
 
 const server = http.createServer(async (req, res) => {
-    const key = `${req.method} ${req.url}`
+    const time = Date.now()
+    const method = req.method
+    const url = req.url
+    const ua = req.headers['user-agent'] || ''
+
+    // console.log(`[${time}] ${method} ${url} UA="${ua}"`)
+
+    const key = `${method} ${url}`
 
     if (ROUTES[key]) {
         ROUTES[key](req, res)
