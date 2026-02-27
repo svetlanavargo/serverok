@@ -64,18 +64,7 @@ const validateData = (email, password) => {
         valid: true
     }
 }
-const getValidData = async (req, res, form) => {
-    const [email, password] = await getPostedData(req)
-    const {valid, error} = validateData(email, password)
 
-    if (!valid) {
-        res.statusCode = 400
-        res.end(renderForm(form, error))
-        return null
-    }
-
-    return [email, password]
-}
 const createPasswordHash = (password, salt) => {
     return crypto.createHash('sha256')
         .update(password + salt).digest('hex')
@@ -90,11 +79,6 @@ const getSid = (cookie) => {
     }
 
     return cookiesObj.sid
-}
-const toLogin = (res) => {
-    res.statusCode = 302
-    res.setHeader("Location", "/login")
-    return res.end()
 }
 
 const registerUser = (email, password, DB) => {
@@ -113,36 +97,7 @@ const registerUser = (email, password, DB) => {
 }
 const checkPassword = (password, baseHashedPassword, salt) => {
     const passwordHash = createPasswordHash(password, salt)
-
-    if (baseHashedPassword !== passwordHash) {
-        return {
-            isCorrect: false,
-            error: 'Неверный пароль'
-        }
-    }
-
-    return {isCorrect: true}
-}
-const isLoggedIn = (req, res) => {
-    const cookie = req.headers.cookie
-
-    if(!cookie) {
-        return toLogin(res)
-    }
-
-    const userSid = getSid(cookie)
-
-    if (!SESSIONS[userSid]) {
-        return toLogin(res)
-    }
-
-    const date = Date.now()
-    if (date > SESSIONS[userSid].expiresAt) {
-        return toLogin(res)
-    }
-
-    return true
-
+    return baseHashedPassword === passwordHash
 }
 const createSession = (email) => {
     const sid = crypto.randomBytes(24).toString("hex")
@@ -154,22 +109,53 @@ const createSession = (email) => {
 }
 const authRequired = (handler) => {
     return (req, res) => {
-        if (isLoggedIn(req, res)) {
-            handler(req, res)
+        const cookie = req.headers.cookie
+
+        if(!cookie) {
+            res.statusCode = 302
+            res.setHeader("Location", "/login")
+            res.end()
+            return
         }
+
+        const userSid = getSid(cookie)
+
+        if (!SESSIONS[userSid]) {
+            res.statusCode = 302
+            res.setHeader("Location", "/login")
+            res.end()
+            return
+        }
+
+        const date = Date.now()
+
+        if (date > SESSIONS[userSid].expiresAt) {
+            res.statusCode = 302
+            res.setHeader("Location", "/login")
+            res.end()
+            return
+        }
+
+        handler(req, res)
     }
 }
 
 const handleRegister = async (req, res) => {
-    const data = await getValidData(req, res, 'register')
-    if (!data) return
-    const [email, password] = data
+    const [email, password] = await getPostedData(req)
+    const {valid, error} = validateData(email, password)
+
+    if (!valid) {
+        res.statusCode = 400
+        res.end(renderForm('register', error))
+        return
+    }
 
     const DB = JSON.parse(fs.readFileSync('bd.json', 'utf-8'))
 
     if (DB.users.some(user => user.email === email)) {
         res.statusCode = 409
-        return res.end(renderForm('register', 'Такой email уже зарегистрирован'))
+        res.end(renderForm('register', 'Такой email уже зарегистрирован'))
+        return
     }
 
     registerUser(email, password, DB)
@@ -179,9 +165,14 @@ const handleRegister = async (req, res) => {
     res.end()
 }
 const handleLogin = async (req, res) => {
-    const data = await getValidData(req, res, 'login')
-    if (!data) return
-    const [email, password] = data
+    const [email, password] = await getPostedData(req)
+    const {valid, error} = validateData(email, password)
+
+    if (!valid) {
+        res.statusCode = 400
+        res.end(renderForm('login', error))
+        return
+    }
 
     const DB = JSON.parse(fs.readFileSync('bd.json', 'utf-8'))
     const user = DB.users.find(user => user.email === email)
@@ -192,11 +183,11 @@ const handleLogin = async (req, res) => {
         return res.end()
     }
 
-    const {isCorrect, error} = checkPassword(password, user.passwordHash, user.salt)
+    const isCorrect = checkPassword(password, user.passwordHash, user.salt)
 
     if (!isCorrect) {
         res.statusCode = 401
-        return res.end(renderForm('login', error))
+        return res.end(renderForm('login', 'Неверный пароль'))
     }
 
     const sid = createSession(email)
@@ -215,7 +206,6 @@ const showLoginForm = (req, res) => {
     res.statusCode = 200
     res.end(renderForm('login', ''))
 }
-
 const pageFirst = (req, res) => {
     res.statusCode = 200
     res.end('first')
