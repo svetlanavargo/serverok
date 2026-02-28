@@ -1,7 +1,6 @@
 import * as http from 'node:http';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import 'dotenv/config';
 
 const PORT = 3000;
 const SESSIONS = {};
@@ -250,12 +249,29 @@ const showLoginForm = (req, res) => {
 }
 const pageFirst = (req, res) => {
     let page = fs.readFileSync('index.html', 'utf-8');
+
+    const env = fs.readFileSync('.env', 'utf-8')
+
+    env.split('\n').forEach(line => {
+        const [key, value] = line.split('=')
+        process.env[key] = value
+    })
+
     page += `<p>${process.env.FIRST_FLAG}</p>`
+
     res.statusCode = 200
     res.end(page)
 }
 const pageSecond = (req, res) => {
     let page = fs.readFileSync('index.html', 'utf-8');
+
+    const env = fs.readFileSync('.env', 'utf-8')
+
+    env.split('\n').forEach(line => {
+        const [key, value] = line.split('=')
+        process.env[key] = value
+    })
+
     page += `<p>${process.env.SECOND_FLAG}</p>`
 
     res.statusCode = 200
