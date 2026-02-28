@@ -20,6 +20,7 @@ const FORM_CONTEXT = {
         REDIRECT_TEXT: 'Регистрация'
     }
 };
+const ENV = fs.readFileSync('.env', 'utf-8')
 
 const renderForm = (formContextKey, error = '') => {
     const context = FORM_CONTEXT[formContextKey]
@@ -33,6 +34,13 @@ const renderForm = (formContextKey, error = '') => {
     FORM = FORM.replace(/{{ERROR}}/g, error)
 
     return FORM
+}
+const getEnv = (env) => {
+    env.split('\n').forEach(line => {
+        const [key, value] = line.split('=')
+        process.env[key] = value
+    })
+    return process.env
 }
 
 const getPostedData = async (req) => {
@@ -249,30 +257,18 @@ const showLoginForm = (req, res) => {
 }
 const pageFirst = (req, res) => {
     let page = fs.readFileSync('index.html', 'utf-8');
+    const env = getEnv(ENV)
 
-    const env = fs.readFileSync('.env', 'utf-8')
-
-    env.split('\n').forEach(line => {
-        const [key, value] = line.split('=')
-        process.env[key] = value
-    })
-
-    page += `<p>${process.env.FIRST_FLAG}</p>`
+    page += `<p>${env.FIRST_FLAG}</p>`
 
     res.statusCode = 200
     res.end(page)
 }
 const pageSecond = (req, res) => {
     let page = fs.readFileSync('index.html', 'utf-8');
+    const env = getEnv(ENV)
 
-    const env = fs.readFileSync('.env', 'utf-8')
-
-    env.split('\n').forEach(line => {
-        const [key, value] = line.split('=')
-        process.env[key] = value
-    })
-
-    page += `<p>${process.env.SECOND_FLAG}</p>`
+    page += `<p>${env.SECOND_FLAG}</p>`
 
     res.statusCode = 200
     res.end(page)
