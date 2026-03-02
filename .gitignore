@@ -3,3 +3,4 @@
 database.json
 node_modules/
 .env
+upload.sh
