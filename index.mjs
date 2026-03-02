@@ -1,7 +1,6 @@
 import * as http from 'node:http';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import 'dotenv/config';
 
 const PORT = 3000;
 const SESSIONS = {};
@@ -21,6 +20,18 @@ const FORM_CONTEXT = {
         REDIRECT_TEXT: 'Регистрация'
     }
 };
+const ENV_FILE = fs.readFileSync('.env', 'utf-8')
+
+const envObject = Object.fromEntries(
+    ENV_FILE.split('\n')
+        .filter(line => line.trim() !== '')
+        .map(line => {
+            const [key, value] = line.split('=')
+            return [key, value]
+        })
+)
+
+const { FIRST_FLAG: firstFlag, SECOND_FLAG: secondFlag } = envObject
 
 const renderForm = (formContextKey, error = '') => {
     const context = FORM_CONTEXT[formContextKey]
@@ -250,13 +261,16 @@ const showLoginForm = (req, res) => {
 }
 const pageFirst = (req, res) => {
     let page = fs.readFileSync('index.html', 'utf-8');
-    page += `<p>${process.env.FIRST_FLAG}</p>`
+
+    page += `<p>${firstFlag}</p>`
+
     res.statusCode = 200
     res.end(page)
 }
 const pageSecond = (req, res) => {
     let page = fs.readFileSync('index.html', 'utf-8');
-    page += `<p>${process.env.SECOND_FLAG}</p>`
+
+    page += `<p>${secondFlag}</p>`
 
     res.statusCode = 200
     res.end(page)
