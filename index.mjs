@@ -1,6 +1,7 @@
 import * as http from 'node:http';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import path from 'node:path';
 
 const PORT = 3000;
 const SESSIONS = {};
@@ -235,7 +236,7 @@ const handleLogin = async (req, res) => {
     res.setHeader('Set-Cookie', `sid=${sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age=3600`)
 
     res.statusCode = 303
-    res.setHeader('Location', '/data-first')
+    res.setHeader('Location', '/')
     res.end()
 }
 const handleLogout = async (req, res) => {
@@ -259,33 +260,53 @@ const showLoginForm = (req, res) => {
     res.statusCode = 200
     res.end(renderForm('login', ''))
 }
-const pageFirst = (req, res) => {
-    let page = fs.readFileSync('index.html', 'utf-8');
+const handleDice = (req, res) => {
+    const baseDir = '/opt/dice';
+    let relativePath = req.url.slice('/dice'.length)
 
-    page += `<p>${firstFlag}</p>`
+    if (!relativePath || relativePath === '/') {
+        relativePath = '/index.html';
+    }
 
-    res.statusCode = 200
-    res.end(page)
-}
-const pageSecond = (req, res) => {
-    let page = fs.readFileSync('index.html', 'utf-8');
+    const fullPath = path.join(baseDir, relativePath);
+    const resolvedPath = path.resolve(fullPath);
 
-    page += `<p>${secondFlag}</p>`
+    if (!resolvedPath.startsWith(baseDir)) {
+        res.statusCode = 403
+        res.end('Forbidden')
+    }
 
-    res.statusCode = 200
-    res.end(page)
+    if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
+        const ext = path.extname(resolvedPath).toLowerCase()
+        let contentType = 'text/plain'
+        if(ext==='.js') contentType='text/javascript'
+        else if(ext==='.css') contentType='text/css'
+        else if(ext==='.html') contentType='text/html'
+        else if(ext==='.svg') contentType='image/svg+xml'
+        else if(ext==='.json') contentType='application/json'
+        else if(ext==='.ico') contentType='image/x-icon'
+
+        res.setHeader('Content-Type',contentType)
+        res.statusCode = 200
+        res.end(fs.readFileSync(resolvedPath))
+    }
+
+    const indexPath = path.join(baseDir,'index.html')
+    if(fs.existsSync(indexPath)){
+        res.setHeader('Content-Type','text/html')
+        res.statusCode = 200
+        res.end(fs.readFileSync(indexPath))
+    } else {
+        res.statusCode = 500
+        res.end('index.html not found')
+    }
 }
 
 const ROUTES = {
-    "GET /": authRequired(pageFirst),
-    "GET /health": (req, res) => {
-        res.statusCode = 200
-        res.end('alive')
-    },
+    "GET /": authRequired(handleDice),
     "GET /register": showRegisterForm,
     "GET /login": showLoginForm,
-    "GET /data-first": authRequired(pageFirst),
-    "GET /data-second": authRequired(pageSecond),
+    "GET /dice": authRequired(handleDice),
     "POST /register": handleRegister,
     "POST /login": handleLogin,
     "POST /logout": handleLogout,
@@ -302,8 +323,12 @@ const server = http.createServer(async (req, res) => {
     const key = `${method} ${url}`
 
     if (ROUTES[key]) {
-        ROUTES[key](req, res)
-    } else {
+        ROUTES[key](req,res)
+    }
+    else if (req.url.startsWith('/dice')) {
+        authRequired(handleDice)(req,res)
+    }
+    else {
         res.statusCode = 404
         res.end('Not found')
     }
