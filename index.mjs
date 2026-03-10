@@ -1,7 +1,12 @@
+import './db/migrate.mjs';
+import UserRepository from './db/userRepository.mjs';
+import database from './db/database.mjs';
 import * as http from 'node:http';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
+
+const users = new UserRepository(database);
 
 const PORT = 3000;
 const SESSIONS = {};
@@ -92,24 +97,6 @@ const getSid = (cookie) => {
     return cookiesObj.sid
 }
 
-const registerUser = (email, password, DB) => {
-    const salt = crypto.randomBytes(16).toString('hex')
-    const passwordHash = createPasswordHash(password, salt)
-
-    const user = {
-        id: crypto.randomUUID(),
-        email: email,
-        passwordHash: passwordHash,
-        salt: salt
-    }
-
-    DB.users.push(user)
-    fs.writeFileSync('database.json', JSON.stringify(DB, null, 2), 'utf-8')
-}
-const checkPassword = (password, baseHashedPassword, salt) => {
-    const passwordHash = createPasswordHash(password, salt)
-    return baseHashedPassword === passwordHash
-}
 const createSession = (email) => {
     const sid = crypto.randomBytes(24).toString("hex")
     const expiresAt = Date.now() + 1000 * 60 * 60
@@ -167,27 +154,19 @@ const handleRegister = async (req, res) => {
         return
     }
 
-    if (!fs.existsSync('database.json')) {
-        const base = {
-            users: []
-        }
-
-        fs.writeFileSync(
-            'database.json',
-            JSON.stringify(base, null, 2),
-            'utf-8'
-        )
-    }
-
-    const DB = JSON.parse(fs.readFileSync('database.json', 'utf-8'))
-
-    if (DB.users.some(user => user.email === email)) {
+    const existingUser = users.getUser(email)
+    if (existingUser) {
         res.statusCode = 409
         res.end(renderForm('register', 'Такой email уже зарегистрирован'))
         return
     }
 
-    registerUser(email, password, DB)
+    const salt = crypto.randomBytes(16).toString('hex')
+    const passwordHash = createPasswordHash(password, salt)
+    const id = crypto.randomUUID()
+
+    users.saveUser({id, salt, email, passwordHash})
+
     res.statusCode = 302
     res.setHeader('Location', '/login')
     res.end()
@@ -202,30 +181,15 @@ const handleLogin = async (req, res) => {
         return
     }
 
-    if (!fs.existsSync('database.json')) {
-        const base = {
-            users: []
-        }
-
-        fs.writeFileSync(
-            'database.json',
-            JSON.stringify(base, null, 2),
-            'utf-8'
-            )
+    const userExists = users.getUser(email);
+    if (!userExists) {
+        res.statusCode = 303;
+        res.setHeader('Location', '/register');
+        res.end();
+        return;
     }
 
-    const DB = JSON.parse(fs.readFileSync('database.json', 'utf-8'))
-    const user = DB.users.find(user => user.email === email)
-
-    if (!user) {
-        res.statusCode = 303
-        res.setHeader('Location', '/register')
-        res.end()
-        return
-    }
-
-    const isCorrect = checkPassword(password, user.passwordHash, user.salt)
-
+    const isCorrect = users.checkPassword(email, password)
     if (!isCorrect) {
         res.statusCode = 403
         res.end(renderForm('login', 'Неверный пароль'))
