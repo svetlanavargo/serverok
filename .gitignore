@@ -1,6 +1,6 @@
 .idea
 .DS_Store
-database.json
+data/
 node_modules/
 .env
 upload.sh

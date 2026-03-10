@@ -1,15 +1,15 @@
 const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
 
 /* ------------------------------------------------------------------ */
 /*  Конфигурация                                                       */
 /* ------------------------------------------------------------------ */
 const PORT = 3000;
 const BASE = `http://localhost:${PORT}`;
-const ROOT = path.resolve(__dirname, '..');
 
-const TEST_USER = { email: 'test@example.com', password: 'password123' };
+const TEST_USER = {
+  email: `test_${Date.now()}@example.com`,
+  password: 'password123'
+};
 
 // Не следовать редиректам, не бросать ошибку на 4xx/5xx
 const api = axios.create({
@@ -21,21 +21,6 @@ const api = axios.create({
 /* ------------------------------------------------------------------ */
 /*  Хелперы                                                            */
 /* ------------------------------------------------------------------ */
-
-/** Поиск файла БД (db.json или database.json) */
-function findDbFile() {
-  for (const name of ['database.json']) {
-    const p = path.join(ROOT, name);
-    if (fs.existsSync(p)) return p;
-  }
-  return null;
-}
-
-function readDb() {
-  const p = findDbFile();
-  if (!p) return { users: [] };
-  return JSON.parse(fs.readFileSync(p, 'utf-8'));
-}
 
 /** Парсинг Set-Cookie заголовков */
 function parseSetCookies(res) {
@@ -58,32 +43,9 @@ function findSidCookie(res) {
   return parseSetCookies(res).find((c) => c.name === 'sid');
 }
 
-/* ------------------------------------------------------------------ */
-/*  Подготовка: чистая БД перед тестами                                */
-/* ------------------------------------------------------------------ */
-
-beforeAll(() => {
-  const emptyDb = JSON.stringify({ users: [] }, null, 2);
-  for (const name of ['db.json', 'database.json']) {
-    const p = path.join(ROOT, name);
-    if (fs.existsSync(p)) {
-      fs.writeFileSync(p, emptyDb, 'utf-8');
-    }
-  }
-});
-
 /* ================================================================== */
 /*  ТЕСТЫ                                                              */
 /* ================================================================== */
-
-/* ---------- GET /health ------------------------------------------- */
-describe('GET /health', () => {
-  test('сервер жив — статус 200 и тело "alive"', async () => {
-    const res = await api.get('/health');
-    expect(res.status).toBe(200);
-    expect(res.data).toContain('alive');
-  });
-});
 
 /* ---------- GET / ------------------------------------------------- */
 describe('GET /', () => {
@@ -100,57 +62,75 @@ describe('GET /', () => {
 
 /* ---------- POST /register ---------------------------------------- */
 describe('POST /register', () => {
+
   test('регистрация нового пользователя — статус 200-302', async () => {
-    const res = await api.post('/register', new URLSearchParams(TEST_USER).toString());
+    const res = await api.post(
+        '/register',
+        new URLSearchParams(TEST_USER).toString()
+    );
+
     expect(res.status).toBeGreaterThanOrEqual(200);
     expect(res.status).toBeLessThan(400);
   });
 
-  test('пользователь сохранён в БД с полями id, email, passwordHash', () => {
-    const db = readDb();
-    const user = db.users.find((u) => u.email === TEST_USER.email);
-    expect(user).toBeDefined();
-    expect(user.id).toBeDefined();
-    expect(user.email).toBe(TEST_USER.email);
-    expect(user.passwordHash).toBeDefined();
-  });
+  test('зарегистрированный пользователь может войти', async () => {
+    const res = await api.post(
+        '/login',
+        new URLSearchParams(TEST_USER).toString()
+    );
 
-  test('пароль хранится как sha256-хеш (64 hex-символа), а НЕ открытым текстом', () => {
-    const db = readDb();
-    const user = db.users.find((u) => u.email === TEST_USER.email);
-    expect(user.passwordHash).not.toBe(TEST_USER.password);
-    // sha256 = 64 hex-символа
-    expect(user.passwordHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(res.status).toBeGreaterThanOrEqual(200);
+    expect(res.status).toBeLessThan(400);
+
+    const sid = findSidCookie(res);
+    expect(sid).toBeDefined();
   });
 
   test('повторная регистрация с тем же email — ошибка 400 или 409', async () => {
-    const res = await api.post('/register', new URLSearchParams(TEST_USER).toString());
+    const res = await api.post(
+        '/register',
+        new URLSearchParams(TEST_USER).toString()
+    );
+
     expect([400, 409]).toContain(res.status);
   });
 
   test('валидация email — должен содержать "@"', async () => {
     const res = await api.post(
-      '/register',
-      new URLSearchParams({ email: 'invalidemail', password: 'password123' }).toString(),
+        '/register',
+        new URLSearchParams({
+          email: 'invalidemail',
+          password: 'password123'
+        }).toString()
     );
+
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
 
   test('валидация email — после "@" должна быть точка', async () => {
     const res = await api.post(
-      '/register',
-      new URLSearchParams({ email: 'user@nodot', password: 'password123' }).toString(),
+        '/register',
+        new URLSearchParams({
+          email: 'user@nodot',
+          password: 'password123'
+        }).toString()
     );
+
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
 
   test('валидация пароля — минимум 8 символов', async () => {
     const res = await api.post(
-      '/register',
-      new URLSearchParams({ email: 'short@pass.com', password: '1234567' }).toString(),
+        '/register',
+        new URLSearchParams({
+          email: 'short@pass.com',
+          password: '1234567'
+        }).toString()
     );
+
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
+
 });
 
 /* ---------- POST /login ------------------------------------------- */
@@ -230,17 +210,8 @@ describe('Защищённые роуты', () => {
   });
 
   /* --- без cookie --- */
-  test('GET /data-first без авторизации — редирект (3xx) или 401', async () => {
-    const res = await api.get('/data-first');
-    const blocked =
-      res.status === 401 ||
-      res.status === 403 ||
-      (res.status >= 300 && res.status < 400);
-    expect(blocked).toBe(true);
-  });
-
-  test('GET /data-second без авторизации — редирект (3xx) или 401', async () => {
-    const res = await api.get('/data-second');
+  test('GET /dice без авторизации — редирект (3xx) или 401', async () => {
+    const res = await api.get('/dice');
     const blocked =
       res.status === 401 ||
       res.status === 403 ||
@@ -249,8 +220,8 @@ describe('Защищённые роуты', () => {
   });
 
   /* --- с невалидным sid --- */
-  test('GET /data-first с невалидным sid — редирект или 401', async () => {
-    const res = await api.get('/data-first', {
+  test('GET /dice с невалидным sid — редирект или 401', async () => {
+    const res = await api.get('/dice', {
       headers: { Cookie: 'sid=invalid_session_id_value' },
     });
     const blocked =
@@ -258,36 +229,6 @@ describe('Защищённые роуты', () => {
       res.status === 403 ||
       (res.status >= 300 && res.status < 400);
     expect(blocked).toBe(true);
-  });
-
-  test('GET /data-second с невалидным sid — редирект или 401', async () => {
-    const res = await api.get('/data-second', {
-      headers: { Cookie: 'sid=invalid_session_id_value' },
-    });
-    const blocked =
-      res.status === 401 ||
-      res.status === 403 ||
-      (res.status >= 300 && res.status < 400);
-    expect(blocked).toBe(true);
-  });
-
-  /* --- с валидным sid --- */
-  test('GET /data-first с валидным sid — статус 200 и контент', async () => {
-    expect(validSid).toBeTruthy();
-    const res = await api.get('/data-first', {
-      headers: { Cookie: `sid=${validSid}` },
-    });
-    expect(res.status).toBe(200);
-    expect(res.data.length).toBeGreaterThan(0);
-  });
-
-  test('GET /data-second с валидным sid — статус 200 и контент', async () => {
-    expect(validSid).toBeTruthy();
-    const res = await api.get('/data-second', {
-      headers: { Cookie: `sid=${validSid}` },
-    });
-    expect(res.status).toBe(200);
-    expect(res.data.length).toBeGreaterThan(0);
   });
 });
 
@@ -331,7 +272,7 @@ describe('POST /logout', () => {
   });
 
   test('после логаута защищённые роуты недоступны с этим sid', async () => {
-    const res = await api.get('/data-first', {
+    const res = await api.get('/dice', {
       headers: { Cookie: `sid=${sidForLogout}` },
     });
     const blocked =

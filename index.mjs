@@ -1,12 +1,36 @@
-import './db/migrate.mjs';
 import UserRepository from './db/userRepository.mjs';
-import database from './db/database.mjs';
+import Database from 'better-sqlite3';
 import * as http from 'node:http';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
 
+const __dirname = path.resolve();
+
+const database = new Database(path.join(__dirname, '../database.sqlite'));
 const users = new UserRepository(database);
+
+let envObject = {};
+
+if (fs.existsSync('.env')) {
+    const ENV_FILE = fs.readFileSync('.env', 'utf-8');
+    envObject = Object.fromEntries(
+        ENV_FILE.split('\n')
+            .filter(line => line.trim() !== '' && !line.startsWith('#'))
+            .map(line => {
+                const [key, value] = line.split('=');
+                return [key, value];
+            })
+    );
+} else {
+    console.warn('⚠ .env file not found! Using default values.');
+    envObject = {
+        FIRST_FLAG: 'DEFAULT_FIRST_FLAG',
+        SECOND_FLAG: 'DEFAULT_SECOND_FLAG'
+    };
+}
+
+const {FIRST_FLAG: firstFlag, SECOND_FLAG: secondFlag} = envObject;
 
 const PORT = 3000;
 const SESSIONS = {};
@@ -26,18 +50,6 @@ const FORM_CONTEXT = {
         REDIRECT_TEXT: 'Регистрация'
     }
 };
-const ENV_FILE = fs.readFileSync('.env', 'utf-8')
-
-const envObject = Object.fromEntries(
-    ENV_FILE.split('\n')
-        .filter(line => line.trim() !== '')
-        .map(line => {
-            const [key, value] = line.split('=')
-            return [key, value]
-        })
-)
-
-const { FIRST_FLAG: firstFlag, SECOND_FLAG: secondFlag } = envObject
 
 const renderForm = (formContextKey, error = '') => {
     const context = FORM_CONTEXT[formContextKey]
@@ -225,7 +237,7 @@ const showLoginForm = (req, res) => {
     res.end(renderForm('login', ''))
 }
 const handleDice = (req, res) => {
-    const baseDir = '/opt/dice';
+    const baseDir = process.env.DICE_DIR || path.join(process.cwd(), 'dice');
     let relativePath = req.url.slice('/dice'.length)
 
     if (!relativePath || relativePath === '/') {
@@ -238,6 +250,7 @@ const handleDice = (req, res) => {
     if (!resolvedPath.startsWith(baseDir)) {
         res.statusCode = 403
         res.end('Forbidden')
+        return
     }
 
     if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
@@ -253,6 +266,7 @@ const handleDice = (req, res) => {
         res.setHeader('Content-Type',contentType)
         res.statusCode = 200
         res.end(fs.readFileSync(resolvedPath))
+        return
     }
 
     const indexPath = path.join(baseDir,'index.html')
@@ -260,10 +274,11 @@ const handleDice = (req, res) => {
         res.setHeader('Content-Type','text/html')
         res.statusCode = 200
         res.end(fs.readFileSync(indexPath))
-    } else {
-        res.statusCode = 500
-        res.end('index.html not found')
+        return
     }
+
+    res.statusCode = 500
+    res.end('index.html not found')
 }
 
 const ROUTES = {
@@ -300,4 +315,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
     console.log(`http://localhost:${PORT}/`);
+    console.log(users.getAllUsers());
 });
+
+export default database
