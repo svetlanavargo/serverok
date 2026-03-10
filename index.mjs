@@ -7,7 +7,7 @@ import path from 'node:path';
 
 const __dirname = path.resolve();
 
-const database = new Database(path.join(__dirname, '../database.sqlite'));
+const database = new Database(path.join(__dirname, 'data', 'database.sqlite'));
 const users = new UserRepository(database);
 
 let envObject = {};
