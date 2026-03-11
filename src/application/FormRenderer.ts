@@ -27,9 +27,9 @@ export class FormRenderer {
         }
     };
 
-    private formPath = path.join(process.cwd(), 'src', 'views', 'form.html');
+    readonly formPath = path.join(process.cwd(), 'src', 'views', 'form.html');
 
-    renderForm(formKey: 'register' | 'login', error: string = ''): string {
+    public  renderForm(formKey: 'register' | 'login', error: string = ''): string {
         let form = fs.readFileSync(this.formPath, 'utf-8');
         const context = this.FORM_CONTEXT[formKey];
 

@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import DatabaseConstructor from 'better-sqlite3';
 
 interface User {
@@ -15,6 +14,21 @@ interface UserRow {
     salt: string
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function isUserRow(value: unknown): value is UserRow {
+    if (!isObject(value)) return false;
+
+    return (
+        typeof value.id === 'string' &&
+        typeof value.email === 'string' &&
+        typeof value.password_hash === 'string' &&
+        typeof value.salt === 'string'
+    );
+}
+
 export default class UserRepository {
     private db: ReturnType<typeof DatabaseConstructor>;
 
@@ -22,26 +36,28 @@ export default class UserRepository {
         this.db = database;
     }
 
-    getUser(email: string): User | undefined {
+    public getUser(email: string): User | undefined {
         try {
             const stmt = this.db.prepare('SELECT * FROM users WHERE email = ?');
-            const row = stmt.get(email) as UserRow | undefined;
-            if (!row) return undefined;
+            const row = stmt.get(email);
+
+            if (!isUserRow(row)) {
+                return undefined;
+            }
 
             return {
                 id: row.id,
                 email: row.email,
                 passwordHash: row.password_hash,
-                salt: row.salt
+                salt: row.salt,
             };
-        }
-        catch (err) {
-            console.error('getUser error:', err);
+        } catch (error) {
+            console.error('Failed to get user:', error);
             return undefined;
         }
     }
 
-    saveUser(user: User): boolean {
+    public saveUser(user: User): boolean {
         try {
             const stmt = this.db.prepare(`
             INSERT INTO users (id, email, password_hash, salt)
@@ -56,27 +72,15 @@ export default class UserRepository {
         }
     }
 
-    checkPassword(email: string, password: string): boolean  {
-        try {
-            const user = this.getUser(email);
-            if (!user) return false
-
-            const hash = crypto.createHash('sha256')
-                .update(password + user.salt)
-                .digest('hex');
-
-            return hash === user.passwordHash
-        }
-        catch (err) {
-            console.error('checkPassword error:', err);
-            return false;
-        }
-    }
-
-    getAllUsers(): User[]  {
+    public getAllUsers(): User[] | undefined  {
         try {
             const stmt = this.db.prepare('SELECT * FROM users');
-            const rows = stmt.all() as UserRow[];
+            const rows = stmt.all();
+
+            if (!rows.every(isUserRow)) {
+                return undefined;
+            }
+
             return rows.map(row => ({
                 id: row.id,
                 email: row.email,

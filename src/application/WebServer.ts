@@ -7,11 +7,11 @@ export default class WebServer {
 
     constructor(private port: number) {}
 
-    registerRoute(method: 'GET' | 'POST', path: string, handler: RouteHandler) {
+    public registerRoute(method: 'GET' | 'POST', path: string, handler: RouteHandler) {
         this.routes[`${method.toUpperCase()} ${path}`] = handler;
     }
 
-    start() {
+    public start() {
         const server = http.createServer(async (req, res) => {
             console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} UA="${req.headers['user-agent']}"`);
 

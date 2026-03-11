@@ -7,8 +7,8 @@ import { FormRenderer } from './application/FormRenderer';
 import SessionManager from './application/SessionManager';
 import EnvManager from './application/EnvManager';
 
-const env = new EnvManager('.env');
-const { FIRST_FLAG, SECOND_FLAG } = env.getFlags();
+const config = EnvManager.create();
+const first = config.get("FIRST_FLAG");
 
 const database = new Database(path.join(process.cwd(), 'data', 'database.sqlite'));
 const users = new UserRepository(database);

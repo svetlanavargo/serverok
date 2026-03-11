@@ -1,36 +1,50 @@
-import fs from 'node:fs';
+import fs from "node:fs";
+
+type Flags = {
+    FIRST_FLAG: string;
+    SECOND_FLAG: string;
+};
 
 export default class EnvManager {
-    private readonly env: Record<string, string> = {};
+    private readonly flags: Flags;
 
-    constructor(envPath: string = '.env') {
-        if (fs.existsSync(envPath)) {
-            const content = fs.readFileSync(envPath, 'utf-8');
-            this.env = Object.fromEntries(
-                content.split('\n')
-                    .filter(line => line.trim() && !line.startsWith('#'))
-                    .map(line => {
-                        const [key, value] = line.split('=');
-                        return [key, value];
-                    })
-            );
-        } else {
-            console.warn('⚠ .env file not found! Using default values.');
-            this.env = {
-                FIRST_FLAG: 'DEFAULT_FIRST_FLAG',
-                SECOND_FLAG: 'DEFAULT_SECOND_FLAG'
-            };
+    private constructor(flags: Flags) {
+        this.flags = flags;
+    }
+
+    static create(envFile: string = ".env"): EnvManager {
+        if (!fs.existsSync(envFile)) {
+            console.warn("⚠ .env file not found! Using default values.");
+
+            return new EnvManager({
+                FIRST_FLAG: "DEFAULT_FIRST_FLAG",
+                SECOND_FLAG: "DEFAULT_SECOND_FLAG"
+            });
         }
+
+        const content = fs.readFileSync(envFile, "utf-8");
+
+        const parsed = Object.fromEntries(
+            content
+                .split("\n")
+                .filter(line => line.trim() !== "" && !line.startsWith("#"))
+                .map(line => {
+                    const [key, value] = line.split("=");
+                    return [key.trim(), value.trim()];
+                })
+        );
+
+        return new EnvManager({
+            FIRST_FLAG: parsed.FIRST_FLAG ?? "DEFAULT_FIRST_FLAG",
+            SECOND_FLAG: parsed.SECOND_FLAG ?? "DEFAULT_SECOND_FLAG"
+        });
     }
 
-    get(key: string, defaultValue: string = ''): string {
-        return this.env[key] || defaultValue;
+    public getFlags(): Flags {
+        return this.flags;
     }
 
-    getFlags(): { FIRST_FLAG: string, SECOND_FLAG: string } {
-        return {
-            FIRST_FLAG: this.get('FIRST_FLAG', 'DEFAULT_FIRST_FLAG'),
-            SECOND_FLAG: this.get('SECOND_FLAG', 'DEFAULT_SECOND_FLAG')
-        };
+    public get(key: keyof Flags) {
+        return this.flags[key];
     }
 }

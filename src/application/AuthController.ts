@@ -22,7 +22,7 @@ export default class AuthController {
         return crypto.createHash('sha256').update(password + salt).digest('hex');
     }
 
-    authRequired(handler: RouteHandler): RouteHandler {
+    public authRequired(handler: RouteHandler): RouteHandler {
         return (req, res, body) => {
             const sid = this.sessions.getSidFromCookie(req.headers.cookie);
             if (!sid || !this.sessions.getSession(sid)) {
@@ -34,17 +34,17 @@ export default class AuthController {
         };
     }
 
-    showRegisterForm: RouteHandler = (req, res) => {
+    public showRegisterForm: RouteHandler = (req, res) => {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(this.formRenderer.renderForm('register'));
     };
 
-    showLoginForm: RouteHandler = (req, res) => {
+    public showLoginForm: RouteHandler = (req, res) => {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(this.formRenderer.renderForm('login'));
     };
 
-    handleRegister: RouteHandler = (req, res, body) => {
+    public handleRegister: RouteHandler = (req, res, body) => {
         const params = new URLSearchParams(body);
         const email = params.get('email')!;
         const password = params.get('password')!;
@@ -75,7 +75,7 @@ export default class AuthController {
         res.end();
     };
 
-    handleLogin: RouteHandler = (req, res, body) => {
+    public handleLogin: RouteHandler = (req, res, body) => {
         const params = new URLSearchParams(body);
         const email = params.get('email')!;
         const password = params.get('password')!;
@@ -101,7 +101,7 @@ export default class AuthController {
         res.end();
     };
 
-    handleLogout: RouteHandler = (req, res) => {
+    public handleLogout: RouteHandler = (req, res) => {
         const sid = this.sessions.getSidFromCookie(req.headers.cookie);
         if (sid) this.sessions.destroySession(sid);
         res.writeHead(303, {
@@ -111,7 +111,7 @@ export default class AuthController {
         res.end();
     };
 
-    handleDice: RouteHandler = (req, res) => {
+    public handleDice: RouteHandler = (req, res) => {
         const baseDir = path.join(process.cwd(), 'dice');
         let relativePath = req.url!.slice('/dice'.length);
         if (!relativePath || relativePath === '/') relativePath = '/index.html';
