@@ -1,14 +1,31 @@
 import crypto from 'node:crypto';
+import DatabaseConstructor from 'better-sqlite3';
+
+interface User {
+    id: string,
+    email: string,
+    passwordHash: string,
+    salt: string
+}
+
+interface UserRow {
+    id: string,
+    email: string,
+    password_hash: string,
+    salt: string
+}
 
 export default class UserRepository {
-    constructor(database) {
+    private db: ReturnType<typeof DatabaseConstructor>;
+
+    constructor(database: ReturnType<typeof DatabaseConstructor>) {
         this.db = database;
     }
 
-    getUser(email) {
+    getUser(email: string): User | undefined {
         try {
             const stmt = this.db.prepare('SELECT * FROM users WHERE email = ?');
-            const row = stmt.get(email);
+            const row = stmt.get(email) as UserRow | undefined;
             if (!row) return undefined;
 
             return {
@@ -24,13 +41,14 @@ export default class UserRepository {
         }
     }
 
-    saveUser({ id, email, passwordHash, salt }) {
+    saveUser(user: User): boolean {
         try {
             const stmt = this.db.prepare(`
             INSERT INTO users (id, email, password_hash, salt)
             VALUES (?, ?, ?, ?)
         `);
-            stmt.run(id, email, passwordHash, salt);
+            stmt.run(user.id, user.email, user.passwordHash, user.salt);
+            return true;
         }
         catch (err) {
             console.error('saveUser error:', err);
@@ -38,7 +56,7 @@ export default class UserRepository {
         }
     }
 
-    checkPassword(email, password) {
+    checkPassword(email: string, password: string): boolean  {
         try {
             const user = this.getUser(email);
             if (!user) return false
@@ -55,10 +73,10 @@ export default class UserRepository {
         }
     }
 
-    getAllUsers() {
+    getAllUsers(): User[]  {
         try {
             const stmt = this.db.prepare('SELECT * FROM users');
-            const rows = stmt.all();
+            const rows = stmt.all() as UserRow[];
             return rows.map(row => ({
                 id: row.id,
                 email: row.email,

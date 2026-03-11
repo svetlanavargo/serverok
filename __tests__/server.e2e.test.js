@@ -49,9 +49,9 @@ function findSidCookie(res) {
 
 /* ---------- GET / ------------------------------------------------- */
 describe('GET /', () => {
-  test('возвращает статус 302', async () => {
+  test('возвращает статус 303', async () => {
     const res = await api.get('/');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
   });
 
   test('на главной странице НЕ отображаются секретные флаги', async () => {
