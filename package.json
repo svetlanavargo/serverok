@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node --watch index.mjs",
+    "dev": "tsx src/index.ts",
+    "start": "npm run build && npm run run",
+    "build": "rm -rf ./build && tsc -p tsconfig.json",
+    "run": "node build/index.js",
     "test": "jest --forceExit --detectOpenHandles",
-    "migrate": "node migrate.mjs"
+    "migrate": "tsx migrate.ts"
   },
   "repository": {
     "type": "git",
@@ -19,8 +22,12 @@
   "homepage": "https://github.com/svetlanavargo/serverok#readme",
   "description": "",
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.13.9",
     "axios": "^1.13.5",
-    "jest": "^30.2.0"
+    "jest": "^30.2.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.8.2"
   },
   "dependencies": {
     "better-sqlite3": "^12.6.2"
