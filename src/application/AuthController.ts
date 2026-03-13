@@ -75,6 +75,11 @@ export default class AuthController {
         res.end();
     };
 
+    public handleRoot: RouteHandler = (req, res) => {
+        res.writeHead(303, { Location: '/dice' });
+        res.end();
+    }
+
     public handleLogin: RouteHandler = (req, res, body) => {
         const params = new URLSearchParams(body);
         const email = params.get('email')!;

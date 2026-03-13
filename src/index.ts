@@ -19,7 +19,7 @@ const authController = new AuthController(users, sessions, formRenderer);
 
 const server = new WebServer(3000);
 
-server.registerRoute('GET', '/', authController.authRequired(authController.handleDice));
+server.registerRoute('GET', '/', authController.authRequired(authController.handleRoot));
 server.registerRoute('GET', '/dice', authController.authRequired(authController.handleDice));
 server.registerRoute('GET', '/register', authController.showRegisterForm);
 server.registerRoute('POST', '/register', authController.handleRegister);
