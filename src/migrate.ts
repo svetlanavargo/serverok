@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import DatabaseConstructor from 'better-sqlite3';
-import database from './src/index';
+import database from './index';
 
 const db: ReturnType<typeof DatabaseConstructor> = database;
 

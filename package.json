@@ -8,7 +8,7 @@
     "build": "rm -rf ./build && tsc -p tsconfig.json",
     "run": "node build/index.js",
     "test": "jest --forceExit --detectOpenHandles",
-    "migrate": "tsx migrate.ts"
+    "migrate": "node build/migrate.js"
   },
   "repository": {
     "type": "git",
