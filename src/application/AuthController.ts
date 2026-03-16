@@ -117,34 +117,48 @@ export default class AuthController {
     };
 
     public handleDice: RouteHandler = (req, res) => {
-        const baseDir = path.join(process.cwd(), 'dice');
-        let relativePath = req.url!.slice('/dice'.length);
-        if (!relativePath || relativePath === '/') relativePath = '/index.html';
 
-        const fullPath = path.join(baseDir, relativePath);
-        const resolvedPath = path.resolve(fullPath);
+        const baseDir = "/opt/dice";
 
-        if (!resolvedPath.startsWith(baseDir)) {
-            res.writeHead(403);
-            res.end('Forbidden');
+        let url = (req.url || "").split("?")[0];
+
+        // убираем /dice если есть
+        url = url.replace(/^\/dice/, "");
+
+        if (url === "" || url === "/") {
+            url = "/index.html";
+        }
+
+        const filePath = path.join(baseDir, url);
+
+        console.log("URL:", req.url);
+        console.log("PATH:", filePath);
+
+        if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+
+            const ext = path.extname(filePath).toLowerCase();
+
+            const mime: Record<string,string> = {
+                ".js":"text/javascript",
+                ".css":"text/css",
+                ".html":"text/html",
+                ".svg":"image/svg+xml",
+                ".json":"application/json",
+                ".png":"image/png",
+                ".jpg":"image/jpeg",
+                ".jpeg":"image/jpeg",
+                ".ico":"image/x-icon"
+            };
+
+            res.writeHead(200, {
+                "Content-Type": mime[ext] || "application/octet-stream"
+            });
+
+            fs.createReadStream(filePath).pipe(res);
             return;
         }
 
-        if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
-            const ext = path.extname(resolvedPath).toLowerCase();
-            let contentType = 'text/plain';
-            if (ext === '.js') contentType = 'text/javascript';
-            else if (ext === '.css') contentType = 'text/css';
-            else if (ext === '.html') contentType = 'text/html';
-            else if (ext === '.svg') contentType = 'image/svg+xml';
-            else if (ext === '.json') contentType = 'application/json';
-
-            res.writeHead(200, { 'Content-Type': contentType });
-            res.end(fs.readFileSync(resolvedPath));
-            return;
-        }
-
-        res.writeHead(500);
-        res.end('File not found');
+        res.writeHead(404);
+        res.end("File not found");
     };
 }

@@ -25,8 +25,13 @@ export default class WebServer {
                 });
             }
 
-            const key = `${req.method} ${req.url}`;
-            const handler = this.routes[key];
+            const url = req.url?.split('?')[0] || '';
+
+            let handler = this.routes[`${req.method} ${url}`];
+
+            if (!handler && url.startsWith('/dice')) {
+                handler = this.routes[`${req.method} /dice`];
+            }
 
             if (handler) {
                 handler(req, res, body);
