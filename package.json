@@ -7,19 +7,12 @@
     "start": "npm run build && npm run run",
     "build": "rm -rf ./build && tsc -p tsconfig.json",
     "run": "node build/index.js",
-    "test": "jest --forceExit --detectOpenHandles",
-    "migrate": "node build/migrate.js"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/svetlanavargo/serverok.git"
+    "test": "npm run build && jest tests --runInBand --forceExit --detectOpenHandles",
+    "migrate": "node src/migrate.js",
+    "db:clear": "tsx src/clearTable.ts"
   },
   "author": "",
   "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/svetlanavargo/serverok/issues"
-  },
-  "homepage": "https://github.com/svetlanavargo/serverok#readme",
   "description": "",
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

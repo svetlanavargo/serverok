@@ -1,15 +1,13 @@
-import crypto from 'node:crypto';
-import DatabaseConstructor from 'better-sqlite3';
-import { SESSION_TTL_MS } from '../config';
-
-export interface SessionData {
-    userId: string;
-    createdAt: number;
-    expiresAt: number;
-}
-
-export default class SessionManager {
-    constructor(private db: ReturnType<typeof DatabaseConstructor>) {
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const node_crypto_1 = __importDefault(require("node:crypto"));
+const config_1 = require("../config");
+class SessionManager {
+    constructor(db) {
+        this.db = db;
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS sessions (
                 sid TEXT PRIMARY KEY,
@@ -19,63 +17,52 @@ export default class SessionManager {
             )
         `);
     }
-
-    public createSession(userId: string, ttlMs: number = SESSION_TTL_MS): string {
-        const sid = crypto.randomBytes(24).toString('hex');
+    createSession(userId, ttlMs = config_1.SESSION_TTL_MS) {
+        const sid = node_crypto_1.default.randomBytes(24).toString('hex');
         const createdAt = Date.now();
         const expiresAt = createdAt + ttlMs;
-
         this.db.prepare(`
             INSERT INTO sessions (sid, user_id, created_at, expires_at)
             VALUES (?, ?, ?, ?)
         `).run(sid, userId, createdAt, expiresAt);
-
         return sid;
     }
-
-    public getSession(sid: string): SessionData | undefined {
+    getSession(sid) {
         const row = this.db.prepare(`
             SELECT user_id, created_at, expires_at
             FROM sessions
             WHERE sid = ?
-        `).get(sid) as
-            | { user_id: string; created_at: number; expires_at: number }
-            | undefined;
-
-        if (!row) return undefined;
-
+        `).get(sid);
+        if (!row)
+            return undefined;
         if (Date.now() > row.expires_at) {
             this.destroySession(sid);
             return undefined;
         }
-
         return {
             userId: row.user_id,
             createdAt: row.created_at,
             expiresAt: row.expires_at
         };
     }
-
-    public destroySession(sid: string): void {
+    destroySession(sid) {
         this.db.prepare('DELETE FROM sessions WHERE sid = ?').run(sid);
     }
-
-    public getSidFromCookie(cookieHeader?: string): string | undefined {
-        if (!cookieHeader) return undefined;
-
+    getSidFromCookie(cookieHeader) {
+        if (!cookieHeader)
+            return undefined;
         const match = cookieHeader.match(/sid=([^;]+)/);
-        return match?.[1];
+        return match === null || match === void 0 ? void 0 : match[1];
     }
-
-    public getUserIdFromCookie(cookieHeader?: string): string | undefined {
+    getUserIdFromCookie(cookieHeader) {
         const sid = this.getSidFromCookie(cookieHeader);
-        if (!sid) return undefined;
-
+        if (!sid)
+            return undefined;
         const session = this.getSession(sid);
-        return session?.userId;
+        return session === null || session === void 0 ? void 0 : session.userId;
     }
-
-    public cleanup(): void {
+    cleanup() {
         this.db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(Date.now());
     }
 }
+exports.default = SessionManager;
