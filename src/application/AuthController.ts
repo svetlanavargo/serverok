@@ -229,7 +229,11 @@ export default class AuthController {
 
         const candidate = value as Record<string, unknown>;
 
-        if (!this.isNonEmptyString(candidate.id) || !this.isNonEmptyString(candidate.name)) {
+        if (!this.isNonEmptyString(candidate.id)) {
+            return null;
+        }
+
+        if ('name' in candidate && typeof candidate.name !== 'string') {
             return null;
         }
 
@@ -249,6 +253,7 @@ export default class AuthController {
 
         if (
             'color' in candidate &&
+            candidate.color !== null &&
             candidate.color !== undefined &&
             typeof candidate.color !== 'string'
         ) {
@@ -257,7 +262,7 @@ export default class AuthController {
 
         return {
             id: candidate.id.trim(),
-            name: candidate.name.trim(),
+            name: typeof candidate.name === 'string' ? candidate.name.trim() : '',
             ac: candidate.ac,
             currentHits: candidate.currentHits,
             maxHits: candidate.maxHits,
@@ -266,6 +271,52 @@ export default class AuthController {
             note: candidate.note,
             ...(typeof candidate.color === 'string' ? { color: candidate.color } : {})
         };
+    }
+
+    private explainInvalidGamePatch(parsed: unknown): string {
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return 'Payload must be a JSON object';
+        }
+
+        const candidate = parsed as Record<string, unknown>;
+
+        if (!this.isNonEmptyString(candidate.id)) {
+            return 'Field "id" is required';
+        }
+
+        if ('name' in candidate && !this.isNonEmptyString(candidate.name)) {
+            return 'Field "name" must be a non-empty string';
+        }
+
+        if ('cards' in candidate) {
+            if (!Array.isArray(candidate.cards)) {
+                return 'Field "cards" must be an array';
+            }
+
+            for (const item of candidate.cards) {
+                if (!this.sanitizeGameCard(item)) {
+                    return 'Field "cards" contains an invalid card';
+                }
+            }
+        }
+
+        if (
+            'turnTimeMode' in candidate &&
+            candidate.turnTimeMode !== 'round' &&
+            candidate.turnTimeMode !== 'time'
+        ) {
+            return 'Field "turnTimeMode" must be "round" or "time"';
+        }
+
+        if (
+            !('name' in candidate) &&
+            !('cards' in candidate) &&
+            !('turnTimeMode' in candidate)
+        ) {
+            return 'Payload must include at least one of: name, cards, turnTimeMode';
+        }
+
+        return 'Invalid payload';
     }
 
     private sanitizeGameCards(value: unknown): GameCard[] | null {
@@ -486,9 +537,12 @@ export default class AuthController {
         const session = this.getSessionOrFail(req, res);
         if (!session) return;
 
-        const patch = this.sanitizeGamePatch(this.parseBody(body));
+        const parsed = this.parseBody(body);
+        const patch = this.sanitizeGamePatch(parsed);
         if (!patch) {
-            return this.failure(res, 400, ERROR_CODES.INVALID_PAYLOAD, 'Invalid payload');
+            const reason = this.explainInvalidGamePatch(parsed);
+            console.error('Invalid game update payload:', reason, parsed);
+            return this.failure(res, 400, ERROR_CODES.INVALID_PAYLOAD, reason);
         }
 
         const updated = this.games.update(patch, session.userId);
@@ -595,4 +649,5 @@ export default class AuthController {
 
         return this.success(res);
     };
+
 }

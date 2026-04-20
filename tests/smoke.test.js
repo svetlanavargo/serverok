@@ -226,6 +226,87 @@ describe('backend smoke', () => {
         db.close();
     });
 
+    test('update game accepts cards with empty names', () => {
+        const { db, games, sessions, controller } = createController();
+        const sid = sessions.createSession('user-1');
+
+        games.create('user-1', {
+            id: 'game-1',
+            name: 'Before',
+            cards: [],
+            turnTimeMode: 'round'
+        });
+
+        const res = createResponse();
+        controller.handleUpdateGame(
+            createAuthedRequest(sid),
+            res,
+            JSON.stringify({
+                id: 'game-1',
+                cards: [{
+                    id: 'card-empty-name',
+                    name: '',
+                    ac: 10,
+                    currentHits: 10,
+                    maxHits: 10,
+                    initiativeBonus: 0,
+                    isPlayer: false,
+                    note: ''
+                }]
+            })
+        );
+
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body)).toMatchObject({
+            ok: true,
+            data: {
+                id: 'game-1',
+                cards: [{ id: 'card-empty-name', name: '' }]
+            }
+        });
+        db.close();
+    });
+
+    test('update game accepts cards without name', () => {
+        const { db, games, sessions, controller } = createController();
+        const sid = sessions.createSession('user-1');
+
+        games.create('user-1', {
+            id: 'game-1',
+            name: 'Before',
+            cards: [],
+            turnTimeMode: 'round'
+        });
+
+        const res = createResponse();
+        controller.handleUpdateGame(
+            createAuthedRequest(sid),
+            res,
+            JSON.stringify({
+                id: 'game-1',
+                cards: [{
+                    id: 'card-no-name',
+                    ac: 10,
+                    currentHits: 10,
+                    maxHits: 10,
+                    initiativeBonus: 0,
+                    isPlayer: false,
+                    note: ''
+                }]
+            })
+        );
+
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body)).toMatchObject({
+            ok: true,
+            data: {
+                id: 'game-1',
+                cards: [{ id: 'card-no-name', name: '' }]
+            }
+        });
+        db.close();
+    });
+
     test('create game accepts frontend shape as-is', () => {
         const { db, sessions, controller } = createController();
         const sid = sessions.createSession('user-1');
@@ -261,6 +342,99 @@ describe('backend smoke', () => {
                 cards: [{
                     id: 'card-a',
                     name: '123123123123',
+                    ac: 10,
+                    currentHits: 10,
+                    maxHits: 10,
+                    initiativeBonus: 0,
+                    isPlayer: false,
+                    note: ''
+                }],
+                turnTimeMode: 'round'
+            }
+        });
+        db.close();
+    });
+
+    test('create game accepts cards with empty names', () => {
+        const { db, sessions, controller } = createController();
+        const sid = sessions.createSession('user-1');
+        const res = createResponse();
+
+        controller.handleCreateGame(
+            createAuthedRequest(sid),
+            res,
+            JSON.stringify({
+                id: 'game-empty-card-name',
+                name: 'No Card Name',
+                cards: [{
+                    id: 'card-empty-name',
+                    name: '',
+                    ac: 10,
+                    currentHits: 10,
+                    maxHits: 10,
+                    initiativeBonus: 0,
+                    isPlayer: false,
+                    note: ''
+                }],
+                turnTimeMode: 'round'
+            })
+        );
+
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body)).toEqual({
+            ok: true,
+            data: {
+                id: 'game-empty-card-name',
+                name: 'No Card Name',
+                cards: [{
+                    id: 'card-empty-name',
+                    name: '',
+                    ac: 10,
+                    currentHits: 10,
+                    maxHits: 10,
+                    initiativeBonus: 0,
+                    isPlayer: false,
+                    note: ''
+                }],
+                turnTimeMode: 'round'
+            }
+        });
+        db.close();
+    });
+
+    test('create game accepts cards without name', () => {
+        const { db, sessions, controller } = createController();
+        const sid = sessions.createSession('user-1');
+        const res = createResponse();
+
+        controller.handleCreateGame(
+            createAuthedRequest(sid),
+            res,
+            JSON.stringify({
+                id: 'game-no-card-name',
+                name: 'No Card Name',
+                cards: [{
+                    id: 'card-no-name',
+                    ac: 10,
+                    currentHits: 10,
+                    maxHits: 10,
+                    initiativeBonus: 0,
+                    isPlayer: false,
+                    note: ''
+                }],
+                turnTimeMode: 'round'
+            })
+        );
+
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body)).toEqual({
+            ok: true,
+            data: {
+                id: 'game-no-card-name',
+                name: 'No Card Name',
+                cards: [{
+                    id: 'card-no-name',
+                    name: '',
                     ac: 10,
                     currentHits: 10,
                     maxHits: 10,
