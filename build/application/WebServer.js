@@ -49,9 +49,6 @@ class WebServer {
         this.port = port;
         this.routes = {};
     }
-    getRouteKey(method, path) {
-        return `${method.toUpperCase()} ${path}`;
-    }
     setCors(res) {
         res.setHeader('Access-Control-Allow-Origin', config_1.CORS_ORIGIN);
         res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -68,7 +65,10 @@ class WebServer {
         return false;
     }
     registerRoute(method, path, handler) {
-        this.routes[this.getRouteKey(method, path)] = handler;
+        var _a;
+        var _b;
+        (_a = (_b = this.routes)[path]) !== null && _a !== void 0 ? _a : (_b[path] = {});
+        this.routes[path][method] = handler;
     }
     readRequestBody(req) {
         return new Promise((resolve, reject) => {
@@ -93,23 +93,56 @@ class WebServer {
         res.writeHead(404);
         res.end('Not found');
     }
-    start() {
-        const server = http.createServer((req, res) => __awaiter(this, void 0, void 0, function* () {
-            var _a, _b;
+    getRouteHandler(method, path) {
+        if (!method) {
+            return undefined;
+        }
+        const methodRoutes = this.routes[path];
+        if (!methodRoutes) {
+            return undefined;
+        }
+        return methodRoutes[method.toUpperCase()];
+    }
+    getAllowedMethods(path) {
+        const methodRoutes = this.routes[path];
+        if (!methodRoutes) {
+            return [];
+        }
+        return Object.keys(methodRoutes);
+    }
+    handleMethodNotAllowed(res, path) {
+        const allowedMethods = this.getAllowedMethods(path);
+        res.writeHead(405, {
+            Allow: [...allowedMethods, 'OPTIONS'].join(',')
+        });
+        res.end('Method not allowed');
+    }
+    handleRequest(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a;
             const url = ((_a = req.url) === null || _a === void 0 ? void 0 : _a.split('?')[0]) || '';
             this.logRequest(req.method, url);
             this.setCors(res);
             if (this.handleOptions(req, res)) {
                 return;
             }
-            const body = yield this.getRequestBody(req);
-            const handler = this.routes[this.getRouteKey((_b = req.method) !== null && _b !== void 0 ? _b : '', url)];
+            const handler = this.getRouteHandler(req.method, url);
             if (!handler) {
+                if (this.getAllowedMethods(url).length > 0) {
+                    this.handleMethodNotAllowed(res, url);
+                    return;
+                }
                 this.handleMissingRoute(res);
                 return;
             }
+            const body = yield this.getRequestBody(req);
+            handler(req, res, body);
+        });
+    }
+    start() {
+        const server = http.createServer((req, res) => __awaiter(this, void 0, void 0, function* () {
             try {
-                handler(req, res, body);
+                yield this.handleRequest(req, res);
             }
             catch (err) {
                 console.error(err);
@@ -118,6 +151,7 @@ class WebServer {
             }
         }));
         server.listen(this.port, () => console.log(`Server running at http://localhost:${this.port}/`));
+        return server;
     }
 }
 exports.default = WebServer;

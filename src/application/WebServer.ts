@@ -1,6 +1,8 @@
 import * as http from 'node:http';
 import { CORS_ORIGIN } from '../config';
 
+type SupportedRouteMethod = 'GET' | 'POST';
+
 export type RouteHandler = (
     req: http.IncomingMessage,
     res: http.ServerResponse,
@@ -8,13 +10,9 @@ export type RouteHandler = (
 ) => void;
 
 export default class WebServer {
-    private routes: Record<string, RouteHandler> = {};
+    private routes: Record<string, Partial<Record<SupportedRouteMethod, RouteHandler>>> = {};
 
     constructor(private port: number) {}
-
-    private getRouteKey(method: string, path: string) {
-        return `${method.toUpperCase()} ${path}`;
-    }
 
     private setCors(res: http.ServerResponse) {
         res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
@@ -34,11 +32,12 @@ export default class WebServer {
     }
 
     public registerRoute(
-        method: 'GET' | 'POST',
+        method: SupportedRouteMethod,
         path: string,
         handler: RouteHandler
     ) {
-        this.routes[this.getRouteKey(method, path)] = handler;
+        this.routes[path] ??= {};
+        this.routes[path][method] = handler;
     }
 
     private readRequestBody(req: http.IncomingMessage) {
@@ -68,28 +67,68 @@ export default class WebServer {
         res.end('Not found');
     }
 
+    private getRouteHandler(method: string | undefined, path: string) {
+        if (!method) {
+            return undefined;
+        }
+
+        const methodRoutes = this.routes[path];
+        if (!methodRoutes) {
+            return undefined;
+        }
+
+        return methodRoutes[method.toUpperCase() as SupportedRouteMethod];
+    }
+
+    private getAllowedMethods(path: string): SupportedRouteMethod[] {
+        const methodRoutes = this.routes[path];
+        if (!methodRoutes) {
+            return [];
+        }
+
+        return Object.keys(methodRoutes) as SupportedRouteMethod[];
+    }
+
+    private handleMethodNotAllowed(res: http.ServerResponse, path: string) {
+        const allowedMethods = this.getAllowedMethods(path);
+
+        res.writeHead(405, {
+            Allow: [...allowedMethods, 'OPTIONS'].join(',')
+        });
+        res.end('Method not allowed');
+    }
+
+    public async handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
+        const url = req.url?.split('?')[0] || '';
+
+        this.logRequest(req.method, url);
+
+        this.setCors(res);
+
+        if (this.handleOptions(req, res)) {
+            return;
+        }
+
+        const handler = this.getRouteHandler(req.method, url);
+
+        if (!handler) {
+            if (this.getAllowedMethods(url).length > 0) {
+                this.handleMethodNotAllowed(res, url);
+                return;
+            }
+
+            this.handleMissingRoute(res);
+            return;
+        }
+
+        const body = await this.getRequestBody(req);
+        handler(req, res, body);
+    }
+
     public start() {
         const server = http.createServer(async (req, res) => {
-            const url = req.url?.split('?')[0] || '';
-
-            this.logRequest(req.method, url);
-
-            this.setCors(res);
-
-            if (this.handleOptions(req, res)) {
-                return;
-            }
-
-            const body = await this.getRequestBody(req);
-            const handler = this.routes[this.getRouteKey(req.method ?? '', url)];
-
-            if (!handler) {
-                this.handleMissingRoute(res);
-                return;
-            }
-
             try {
-                handler(req, res, body);
+                await this.handleRequest(req, res);
             } catch (err) {
                 console.error(err);
                 res.writeHead(500);
@@ -100,5 +139,7 @@ export default class WebServer {
         server.listen(this.port, () =>
             console.log(`Server running at http://localhost:${this.port}/`)
         );
+
+        return server;
     }
 }

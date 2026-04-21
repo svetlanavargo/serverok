@@ -1,10 +1,10 @@
 const Database = require('better-sqlite3');
-
 const UserRepository = require('../build/db/userRepository').default;
 const GameRepository = require('../build/db/gameRepository').default;
 const CharacterRepository = require('../build/db/characterRepository').default;
 const SessionManager = require('../build/application/SessionManager').default;
 const AuthController = require('../build/application/AuthController').default;
+const WebServer = require('../build/application/WebServer').default;
 
 function createSchema(db) {
     db.exec(`
@@ -57,9 +57,15 @@ function createResponse() {
         statusCode: 200,
         headers: {},
         body: '',
+        setHeader(name, value) {
+            this.headers[name] = value;
+        },
         writeHead(statusCode, headers) {
             this.statusCode = statusCode;
-            this.headers = headers;
+            this.headers = {
+                ...this.headers,
+                ...(headers ?? {})
+            };
         },
         end(payload) {
             this.body = payload ?? '';
@@ -472,5 +478,40 @@ describe('backend smoke', () => {
         expect(repo.getByUserId('user-1')).toEqual([]);
         expect(repo.getById('broken', 'user-1')).toBeNull();
         db.close();
+    });
+});
+
+describe('web server methods', () => {
+    test('returns 405 when path exists but method is not allowed', async () => {
+        const app = new WebServer(0);
+        app.registerRoute('GET', '/resource', (_req, res) => {
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('ok');
+        });
+
+        const req = { method: 'DELETE', url: '/resource', headers: {} };
+        const res = createResponse();
+
+        await app.handleRequest(req, res);
+
+        expect(res.statusCode).toBe(405);
+        expect(res.headers.Allow).toBe('GET,OPTIONS');
+        expect(res.body).toBe('Method not allowed');
+    });
+
+    test('returns 404 for unknown path', async () => {
+        const app = new WebServer(0);
+        app.registerRoute('GET', '/resource', (_req, res) => {
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('ok');
+        });
+
+        const req = { method: 'DELETE', url: '/missing', headers: {} };
+        const res = createResponse();
+
+        await app.handleRequest(req, res);
+
+        expect(res.statusCode).toBe(404);
+        expect(res.body).toBe('Not found');
     });
 });
